@@ -1,0 +1,48 @@
+name: Release Module
+
+# Runs whenever you publish a GitHub Release. It rewrites module.json with the
+# correct version + URLs for THIS repo, zips the module, and attaches both
+# module.json and module.zip to the release so Foundry can install them.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Strip a leading "v" from the tag so the Foundry version field is a
+      # plain number (v1.2.0 -> 1.2.0). The release/download URLs still use
+      # the original tag name.
+      - name: Resolve version
+        id: ver
+        run: echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+
+      - name: Inject values into module.json
+        uses: microsoft/variable-substitution@v1
+        with:
+          files: 'module.json'
+        env:
+          version: ${{ steps.ver.outputs.version }}
+          url: https://github.com/${{ github.repository }}
+          manifest: https://github.com/${{ github.repository }}/releases/latest/download/module.json
+          download: https://github.com/${{ github.repository }}/releases/download/${{ github.event.release.tag_name }}/module.zip
+
+      - name: Create module.zip
+        run: zip -r ./module.zip module.json scripts/ README.md LICENSE
+
+      - name: Attach assets to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            module.json
+            module.zip
