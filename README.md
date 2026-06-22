@@ -24,10 +24,10 @@ evaluated as a standalone expression. Press Enter or click away to apply.
 ## Install (manifest URL — recommended)
 
 In Foundry: **Add-on Modules → Install Module**, and paste this into the
-**Manifest URL** box (replace `YOUR_USERNAME`):
+**Manifest URL** box:
 
 ```
-https://github.com/YOUR_USERNAME/math-input-fields/releases/latest/download/module.json
+https://github.com/BatoRoy/math-input-fields/releases/latest/download/module.json
 ```
 
 This always installs the latest release and lets Foundry notify you of updates.
