@@ -1,4 +1,4 @@
-# Math in Input Fields
+# Spare the Mental Math
 
 A small Foundry VTT (v12) module that lets you do arithmetic directly in numeric
 fields on actor and item sheets — HP, temp HP, currency/coins, ability scores,
@@ -41,7 +41,7 @@ Alternatively, copy the `math-input-fields` folder into your Foundry
 <FoundryUserData>/Data/modules/math-input-fields/
 ```
 
-Then in Foundry: **Game Settings → Manage Modules → enable "Math in Input Fields"**.
+Then in Foundry: **Game Settings → Manage Modules → enable "Spare the Mental Math"**.
 
 ## Notes
 

@@ -1,6 +1,6 @@
 {
   "id": "math-input-fields",
-  "title": "Math in Input Fields",
+  "title": "Spare the Mental Math",
   "description": "Type arithmetic into numeric fields on actor and item sheets. Use +N / -N / *N / /N to adjust relative to the current value (e.g. +5 to gain 5 HP, -3 to spend 3 gold), or a full expression like 12+7 to set an absolute result.",
   "version": "1.0.0",
   "compatibility": {
