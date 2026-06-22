@@ -86,6 +86,13 @@ function prepareInput(input) {
   input.setAttribute("inputmode", "decimal");
   input.autocomplete = "off";
 
+  // Critical: a native <input type="number"> is coerced to a Number by
+  // Foundry's FormDataExtended on submit. Once we switch it to type="text"
+  // it would submit as a String, which fails data-model validation (e.g.
+  // "hp.value must be an integer"). data-dtype="Number" tells Foundry to
+  // coerce the submitted value back to a Number.
+  input.setAttribute("data-dtype", "Number");
+
   // Capture the "base" value whenever the user starts editing, so relative
   // operators (+5, -3, ...) know what to operate on.
   input.addEventListener("focus", () => {
