@@ -27,7 +27,7 @@ In Foundry: **Add-on Modules → Install Module**, and paste this into the
 **Manifest URL** box:
 
 ```
-https://github.com/BatoRoy/math-input-fields/releases/latest/download/module.json
+https://github.com/BatoRoy/Spare-the-Mental-Math/releases/latest/download/module.json
 ```
 
 This always installs the latest release and lets Foundry notify you of updates.
