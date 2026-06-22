@@ -1,6 +1,6 @@
 /**
- * Math in Input Fields
- * --------------------
+ * Spare the Mental Math
+ * ---------------------
  * Lets you type arithmetic into numeric inputs on actor/item sheets.
  *
  *   +5     -> current value + 5     (relative)
@@ -13,10 +13,13 @@
  * A leading + - * / means "relative to the value already in the box".
  * Anything else is evaluated as a standalone expression.
  *
- * Native <input type="number"> elements won't physically accept a
- * character like "+" in the middle of a number, so we convert the
- * targeted fields to type="text" and validate/evaluate the expression
- * ourselves before Foundry reads the value off the form.
+ * Design note: rather than hooking sheet-render events (which fire under the
+ * exact subclass name, e.g. renderActorSheet5eCharacter2, and so are easy to
+ * miss across systems/versions), we attach two CAPTURE-phase listeners at the
+ * document level. They see every numeric, data-bound input on any sheet —
+ * including fields the system already manages itself, like dnd5e's HP — and
+ * resolve the expression before the system's or Foundry's own change handler
+ * reads the value off the form.
  */
 
 const MODULE_ID = "math-input-fields";
@@ -69,70 +72,85 @@ function evaluateExpression(raw, base) {
 }
 
 /**
- * Prepare a single input so it accepts and evaluates expressions.
- * @param {HTMLInputElement} input
+ * Should this element accept arithmetic? We want data-bound numeric inputs
+ * that live inside a document sheet (actor, item, etc.).
+ * @param {EventTarget} el
+ * @returns {el is HTMLInputElement}
  */
-function prepareInput(input) {
-  if (input.dataset.mifReady) return;            // already wired up
-  if (!input.name) return;                       // not bound to sheet data
-  if (input.disabled || input.readOnly) return;
+function isTargetInput(el) {
+  if (!(el instanceof HTMLInputElement)) return false;
+  if (!el.name) return false;                         // not bound to sheet data
+  if (el.disabled || el.readOnly) return false;
+  if (!el.closest(".sheet")) return false;            // only inside document sheets
 
-  input.dataset.mifReady = "1";
-
-  // Remember what kind of field this was, then make it accept text so the
-  // user can type operators. We keep numeric hints for mobile keyboards.
-  input.dataset.mifWasNumber = "1";
-  input.type = "text";
-  input.setAttribute("inputmode", "decimal");
-  input.autocomplete = "off";
-
-  // Critical: a native <input type="number"> is coerced to a Number by
-  // Foundry's FormDataExtended on submit. Once we switch it to type="text"
-  // it would submit as a String, which fails data-model validation (e.g.
-  // "hp.value must be an integer"). data-dtype="Number" tells Foundry to
-  // coerce the submitted value back to a Number.
-  input.setAttribute("data-dtype", "Number");
-
-  // Capture the "base" value whenever the user starts editing, so relative
-  // operators (+5, -3, ...) know what to operate on.
-  input.addEventListener("focus", () => {
-    const n = Number(input.value);
-    input.dataset.mifBase = Number.isFinite(n) ? String(n) : "0";
-  });
-
-  // Run in the CAPTURE phase so we rewrite the value before Foundry's own
-  // bubbling change-handler reads it off the form and submits.
-  input.addEventListener(
-    "change",
-    (event) => {
-      const base = Number(input.dataset.mifBase ?? "0");
-      const computed = evaluateExpression(input.value, base);
-      if (computed !== null) {
-        input.value = String(computed);
-        // Refresh the base in case the field stays focused / re-fires.
-        input.dataset.mifBase = String(computed);
-      }
-    },
-    { capture: true }
+  const inputMode = el.getAttribute("inputmode") || "";
+  return (
+    el.type === "number" ||                           // a plain numeric field
+    el.dataset.dtype === "Number" ||                  // Foundry-tagged numeric
+    el.dataset.mifReady === "1" ||                    // we already prepared it
+    inputMode === "numeric" ||                        // system numeric text field
+    inputMode === "decimal"                           // (e.g. dnd5e HP)
   );
 }
 
 /**
- * Wire up every numeric input inside a rendered sheet.
- * @param {Application} app
- * @param {jQuery|HTMLElement} html
+ * Make a field able to accept operators and submit as a Number.
+ * @param {HTMLInputElement} input
  */
-function onRenderSheet(app, html) {
-  const root = html instanceof HTMLElement ? html : html?.[0];
-  if (!root) return;
+function ensureEditable(input) {
+  if (input.dataset.mifReady === "1") return;
+  input.dataset.mifReady = "1";
 
-  const inputs = root.querySelectorAll('input[type="number"]');
-  for (const input of inputs) prepareInput(input);
+  // A native <input type="number"> physically rejects characters like "+",
+  // so switch it to text. We keep a numeric on-screen keyboard for mobile.
+  if (input.type === "number") {
+    input.type = "text";
+    input.setAttribute("inputmode", "decimal");
+    input.autocomplete = "off";
+  }
+
+  // Critical: a native number input is coerced to a Number by Foundry's
+  // FormDataExtended on submit; a text input is left as a String, which fails
+  // data-model validation (e.g. "hp.value must be an integer"). Tagging the
+  // field tells Foundry to coerce our result back to a Number.
+  if (input.dataset.dtype !== "Number") input.setAttribute("data-dtype", "Number");
 }
 
-Hooks.on("renderActorSheet", onRenderSheet);
-Hooks.on("renderItemSheet", onRenderSheet);
+/**
+ * On focus, remember the field's current value so relative operators
+ * (+5, -3, ...) have a base to work from, and make the field editable.
+ * @param {FocusEvent} event
+ */
+function onFocusIn(event) {
+  const input = event.target;
+  if (!isTargetInput(input)) return;
+  ensureEditable(input);
+  const n = Number(input.value);
+  input.dataset.mifBase = Number.isFinite(n) ? String(n) : "0";
+}
 
-Hooks.once("init", () => {
-  console.log(`${MODULE_ID} | initialized — arithmetic enabled in numeric sheet fields.`);
+/**
+ * On change, resolve any arithmetic in the field to a concrete number BEFORE
+ * the system's / Foundry's own change handler reads it. Runs in the capture
+ * phase at the document level, so it precedes every other change listener.
+ * @param {Event} event
+ */
+function onChangeCapture(event) {
+  const input = event.target;
+  if (!isTargetInput(input)) return;
+
+  let base = Number(input.dataset.mifBase);
+  if (!Number.isFinite(base)) base = 0;
+
+  const computed = evaluateExpression(input.value, base);
+  if (computed !== null) {
+    input.value = String(computed);
+    input.dataset.mifBase = String(computed);
+  }
+}
+
+Hooks.once("ready", () => {
+  document.addEventListener("focusin", onFocusIn, true);
+  document.addEventListener("change", onChangeCapture, true);
+  console.log(`${MODULE_ID} | ready — arithmetic enabled in numeric sheet fields.`);
 });
