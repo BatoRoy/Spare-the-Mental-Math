@@ -79,7 +79,9 @@ function evaluateExpression(raw, base) {
  */
 function isTargetInput(el) {
   if (!(el instanceof HTMLInputElement)) return false;
-  if (!el.name) return false;                         // not bound to sheet data
+  // Bound to data either via the form (name) or via a system's own change
+  // handler for list-row inputs (data-name, e.g. dnd5e item quantity).
+  if (!el.name && !el.dataset.name) return false;
   if (el.disabled || el.readOnly) return false;
   if (!el.closest(".sheet")) return false;            // only inside document sheets
 
